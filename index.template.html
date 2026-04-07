@@ -1821,13 +1821,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     await handleSession(session);
   });
 
-  // Explicitly fetch current session — covers cases where onAuthStateChange
-  // doesn't fire the INITIAL_SESSION event (file:// protocol, new key formats)
+  // Explicitly fetch current session with a 5s timeout guard
   try {
-    const { data: { session } } = await sb.auth.getSession();
+    const sessionPromise = sb.auth.getSession();
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('getSession timeout')), 5000)
+    );
+    const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
     await handleSession(session);
   } catch (e) {
     console.error('Supabase getSession error:', e);
+    // Clear potentially corrupt session and show login
+    await sb.auth.signOut().catch(() => {});
     await handleSession(null);
   }
 });
