@@ -1825,7 +1825,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     const sessionPromise = sb.auth.getSession();
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('getSession timeout')), 5000)
+      setTimeout(() => reject(new Error('getSession timeout')), 3000)
     );
     const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
     await handleSession(session);
