@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+echo "=== Available environment variables ==="
+printenv | grep -i supa || echo "(no SUPA* vars found)"
+printenv | sort
+echo "======================================="
+
 if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
   echo "Error: SUPABASE_URL and SUPABASE_KEY environment variables must be set."
   exit 1
