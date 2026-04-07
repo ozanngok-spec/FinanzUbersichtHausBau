@@ -1856,8 +1856,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await handleSession(session);
   } catch (e) {
     console.error('Supabase getSession error:', e);
-    // Clear potentially corrupt session and show login
-    await sb.auth.signOut().catch(() => {});
+    // Clear corrupt session locally (no network request) then show login
+    await sb.auth.signOut({ scope: 'local' }).catch(() => {});
+    appInitialized = false;
     await handleSession(null);
   }
 });
