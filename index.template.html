@@ -906,13 +906,18 @@ body {
       <button class="auth-tab" id="tab-signup" onclick="setAuthMode('signup')">Registrieren</button>
     </div>
     <div class="auth-field">
-      <label>E-Mail</label>
-      <input type="email" id="auth-email" placeholder="name@beispiel.de" autocomplete="email"
+      <label id="label-email">Benutzername oder E-Mail</label>
+      <input type="text" id="auth-email" placeholder="Benutzername oder E-Mail" autocomplete="username"
         onkeydown="if(event.key==='Enter') handleAuth()">
     </div>
     <div class="auth-field" id="field-username" style="display:none;">
       <label>Benutzername</label>
       <input type="text" id="auth-username" placeholder="z.B. Ozan" autocomplete="username"
+        onkeydown="if(event.key==='Enter') handleAuth()">
+    </div>
+    <div class="auth-field" id="field-email-signup" style="display:none;">
+      <label>E-Mail</label>
+      <input type="email" id="auth-email-signup" placeholder="name@beispiel.de" autocomplete="email"
         onkeydown="if(event.key==='Enter') handleAuth()">
     </div>
     <div class="auth-field">
@@ -1726,6 +1731,9 @@ function setAuthMode(mode) {
   document.getElementById('tab-signin').classList.toggle('active', mode === 'signin');
   document.getElementById('tab-signup').classList.toggle('active', mode === 'signup');
   document.getElementById('field-username').style.display = mode === 'signup' ? 'block' : 'none';
+  document.getElementById('field-email-signup').style.display = mode === 'signup' ? 'block' : 'none';
+  document.getElementById('label-email').textContent = mode === 'signin' ? 'Benutzername oder E-Mail' : 'Benutzername (Anzeigename)';
+  document.getElementById('auth-email').placeholder = mode === 'signin' ? 'Benutzername oder E-Mail' : 'Benutzername';
   document.getElementById('auth-submit').textContent = mode === 'signin' ? 'Anmelden' : 'Registrieren';
   document.getElementById('auth-password').autocomplete = mode === 'signup' ? 'new-password' : 'current-password';
   document.getElementById('auth-message').className = 'auth-message';
@@ -1738,32 +1746,49 @@ function showAuthMsg(text, type) {
 }
 
 async function handleAuth() {
-  const email    = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
-  const username = document.getElementById('auth-username').value.trim();
-  const btn      = document.getElementById('auth-submit');
+  const emailOrUsername = document.getElementById('auth-email').value.trim();
+  const password        = document.getElementById('auth-password').value;
+  const username        = document.getElementById('auth-username').value.trim();
+  const emailSignup     = document.getElementById('auth-email-signup').value.trim();
+  const btn             = document.getElementById('auth-submit');
 
-  if (!email || !password) return showAuthMsg('Bitte E-Mail und Passwort eingeben.', 'error');
-  if (authMode === 'signup' && !username) return showAuthMsg('Bitte einen Benutzernamen eingeben.', 'error');
+  if (!emailOrUsername || !password) return showAuthMsg('Bitte Benutzername/E-Mail und Passwort eingeben.', 'error');
 
   btn.disabled = true;
   btn.textContent = '…';
   document.getElementById('auth-message').className = 'auth-message';
 
   if (authMode === 'signup') {
-    const { error } = await sb.auth.signUp({
-      email, password,
+    if (!username) return (btn.disabled=false, btn.textContent='Registrieren', showAuthMsg('Bitte einen Benutzernamen eingeben.', 'error'));
+    if (!emailSignup) return (btn.disabled=false, btn.textContent='Registrieren', showAuthMsg('Bitte eine E-Mail eingeben.', 'error'));
+    const { data, error } = await sb.auth.signUp({
+      email: emailSignup, password,
       options: { data: { username } }
     });
+    if (error) { btn.disabled=false; btn.textContent='Registrieren'; return showAuthMsg(error.message, 'error'); }
+    // Save username→email mapping in profiles table
+    if (data.user) {
+      await sb.from('profiles').insert({ user_id: data.user.id, username, email: emailSignup });
+    }
     btn.disabled = false;
     btn.textContent = 'Registrieren';
-    if (error) return showAuthMsg(error.message, 'error');
     showAuthMsg('Bestätigungs-E-Mail gesendet! Bitte E-Mail prüfen.', 'success');
   } else {
-    const { error } = await sb.auth.signInWithPassword({ email, password });
+    // Resolve username to email if needed
+    let loginEmail = emailOrUsername;
+    if (!emailOrUsername.includes('@')) {
+      const { data: profile, error: profileError } = await sb.from('profiles')
+        .select('email').eq('username', emailOrUsername).maybeSingle();
+      if (profileError || !profile) {
+        btn.disabled = false; btn.textContent = 'Anmelden';
+        return showAuthMsg('Benutzername nicht gefunden.', 'error');
+      }
+      loginEmail = profile.email;
+    }
+    const { error } = await sb.auth.signInWithPassword({ email: loginEmail, password });
     btn.disabled = false;
     btn.textContent = 'Anmelden';
-    if (error) return showAuthMsg('Falsche E-Mail oder Passwort.', 'error');
+    if (error) return showAuthMsg('Falsches Passwort.', 'error');
     // onAuthStateChange will handle the rest
   }
 }
