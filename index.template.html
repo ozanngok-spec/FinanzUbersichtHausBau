@@ -1839,7 +1839,26 @@ async function handleSession(session) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Safety timeout — if nothing resolves in 6s, show error
+  // Pre-validate stored session BEFORE passing to SDK — corrupt/expired tokens cause getSession() to hang
+  try {
+    const sbKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+    if (sbKey) {
+      const stored = JSON.parse(localStorage.getItem(sbKey));
+      let exp = stored?.expires_at;
+      if (!exp && stored?.access_token) {
+        try { exp = JSON.parse(atob(stored.access_token.split('.')[1]))?.exp; } catch(_) {}
+      }
+      if (!exp || exp * 1000 < Date.now()) {
+        console.log('Stale/expired session token — clearing before SDK init');
+        Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
+      }
+    }
+  } catch(e) {
+    // Corrupt JSON — wipe all Supabase keys
+    Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
+  }
+
+  // Safety timeout
   const loadTimeout = setTimeout(() => {
     if (!appInitialized) showLoadError('Verbindung zu Supabase fehlgeschlagen. URL/Key prüfen oder Internetverbindung testen.');
   }, 6000);
@@ -1847,11 +1866,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Listen for future auth changes (login / logout)
   sb.auth.onAuthStateChange(async (event, session) => {
     clearTimeout(loadTimeout);
-    appInitialized = false; // allow re-init on auth change
+    appInitialized = false;
     await handleSession(session);
   });
 
-  // Explicitly fetch current session with a 4s timeout guard
+  // Fetch current session — fast now that corrupt tokens are pre-cleared
   try {
     const { data: { session } } = await Promise.race([
       sb.auth.getSession(),
@@ -1860,7 +1879,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await handleSession(session);
   } catch (e) {
     console.error('Supabase getSession error:', e);
-    // SDK may have crashed on a corrupt token — wipe all sb-* localStorage keys directly
     Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
     appInitialized = false;
     await handleSession(null);
