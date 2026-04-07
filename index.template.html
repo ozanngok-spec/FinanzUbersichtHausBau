@@ -984,18 +984,23 @@ async function loadDataFromDB(userId) {
 let dataChanged = true;
 async function saveData() {
   showToast('Speichern…', false);
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return;
-  const { error } = await sb.from('project_data').upsert(
-    { user_id: user.id, data: DATA, updated_at: new Date().toISOString() },
-    { onConflict: 'user_id' }
-  );
-  if (error) {
-    console.error('Supabase save error:', error);
-    showToast('Fehler beim Speichern', true);
-  } else {
+  try {
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) { showToast('Nicht angemeldet', true); return; }
+    const upsertPromise = sb.from('project_data').upsert(
+      { user_id: user.id, data: DATA, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    );
+    const { error } = await Promise.race([
+      upsertPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('save timeout')), 8000))
+    ]);
+    if (error) throw error;
     dataChanged = true;
     showToast('✓ Gespeichert', false);
+  } catch(e) {
+    console.error('Supabase save error:', e);
+    showToast('Fehler beim Speichern', true);
   }
 }
 
