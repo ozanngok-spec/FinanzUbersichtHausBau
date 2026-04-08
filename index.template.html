@@ -347,6 +347,37 @@ body {
 }
 .unsaved-modal-actions .btn-save:hover { background: var(--gold2); }
 
+/* ─── UNDO DELETE TOAST ─── */
+.undo-toast {
+  position: fixed; bottom: 24px; left: 24px;
+  background: var(--surface2);
+  border: 1px solid var(--red);
+  border-radius: var(--radius);
+  padding: 13px 16px 10px;
+  font-size: 0.82rem; color: var(--text);
+  opacity: 0; transform: translateY(8px);
+  transition: opacity 0.25s, transform 0.25s;
+  pointer-events: none; z-index: 1000;
+  min-width: 260px; max-width: 340px;
+  box-shadow: var(--shadow);
+}
+.undo-toast.show { opacity: 1; transform: translateY(0); pointer-events: all; }
+.undo-toast-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.undo-toast-icon { font-size: 1rem; flex-shrink: 0; }
+.undo-toast-label { flex: 1; color: var(--text2); font-size: 0.8rem; }
+.undo-toast-label strong { color: var(--text); display: block; font-size: 0.83rem; }
+.undo-btn {
+  background: var(--red); color: #fff; border: none;
+  border-radius: var(--radius-sm); padding: 5px 13px;
+  font-family: var(--font-body); font-size: 0.78rem; font-weight: 600;
+  cursor: pointer; transition: background 0.15s; flex-shrink: 0;
+}
+.undo-btn:hover { background: #c0392b; }
+.undo-progress { height: 2px; background: var(--border2); border-radius: 2px; overflow: hidden; }
+.undo-progress-bar { height: 100%; background: var(--red); width: 100%; }
+.undo-progress-bar.running { animation: undo-shrink 5s linear forwards; }
+@keyframes undo-shrink { from { width: 100%; } to { width: 0%; } }
+
 /* ─── MOBILE BOTTOM NAV ─── */
 .mobile-nav {
   display: none;
@@ -964,6 +995,14 @@ body {
 </nav>
 
 <div class="toast" id="toast">✓ Gespeichert</div>
+<div class="undo-toast" id="undo-toast">
+  <div class="undo-toast-row">
+    <span class="undo-toast-icon">🗑</span>
+    <span class="undo-toast-label"><strong id="undo-toast-title"></strong><span id="undo-toast-msg">gelöscht</span></span>
+    <button class="undo-btn" onclick="undoDelete()">Rükgängig</button>
+  </div>
+  <div class="undo-progress"><div class="undo-progress-bar" id="undo-progress-bar"></div></div>
+</div>
 
 <!-- LOADING SCREEN -->
 <div id="app-loading">
@@ -1737,11 +1776,49 @@ function updateGewerk(gi, field, val) {
   DATA.gewerke[gi][field] = field==='note' ? val : (parseFloat(val)||0);
   markDirty(tag, text); renderAll();
 }
+// ── Undo delete management ──
+let _undoState = null;
+let _undoTimer = null;
+
+function _showUndoToast(title, subtitle, restoreFn) {
+  if (_undoTimer) { clearTimeout(_undoTimer); _undoTimer = null; }
+  _undoState = { restoreFn };
+  document.getElementById('undo-toast-title').textContent = title;
+  document.getElementById('undo-toast-msg').textContent = subtitle;
+  const bar = document.getElementById('undo-progress-bar');
+  bar.classList.remove('running');
+  void bar.offsetWidth; // restart animation
+  bar.classList.add('running');
+  document.getElementById('undo-toast').classList.add('show');
+  _undoTimer = setTimeout(() => {
+    _undoState = null; _undoTimer = null;
+    document.getElementById('undo-toast').classList.remove('show');
+    saveData(); // commit the delete to Supabase
+    dataChanged = true;
+  }, 5000);
+}
+
+function undoDelete() {
+  if (!_undoState) return;
+  clearTimeout(_undoTimer); _undoTimer = null;
+  const { restoreFn } = _undoState;
+  _undoState = null;
+  document.getElementById('undo-toast').classList.remove('show');
+  restoreFn();
+  renderAll();
+  // No save needed — DATA is restored to original state
+}
+
 function deleteGewerk(gi) {
-  if(!confirm(`"${DATA.gewerke[gi].name}" löschen?`)) return;
+  const backup = JSON.parse(JSON.stringify(DATA.gewerke[gi]));
+  const name = DATA.gewerke[gi].name;
   expandedGewerke.delete(gi);
-  DATA.gewerke.splice(gi,1);
-  saveData(); renderAll();
+  DATA.gewerke.splice(gi, 1);
+  dataChanged = true; renderAll();
+  _showUndoToast(name, `Gewerk gelöscht — ${backup.zahlungen?.length||0} Zahlung(en)`, () => {
+    DATA.gewerke.splice(gi, 0, backup);
+    dataChanged = true;
+  });
 }
 function previewRaten() {
   const budget = parseFloat(document.getElementById('new-gewerk-budget').value)||0;
@@ -1826,9 +1903,15 @@ function applyPct(gi, budget) {
 }
 
 function deleteZahlung(gi, zi) {
-  if(!confirm(`Zahlung "${DATA.gewerke[gi].zahlungen[zi].notiz||fEUR(DATA.gewerke[gi].zahlungen[zi].betrag)}" löschen?`)) return;
-  DATA.gewerke[gi].zahlungen.splice(zi,1);
-  saveData(); renderAll();
+  const backup = JSON.parse(JSON.stringify(DATA.gewerke[gi].zahlungen[zi]));
+  const label = backup.notiz || fEUR(backup.betrag);
+  const gewerk = DATA.gewerke[gi].name;
+  DATA.gewerke[gi].zahlungen.splice(zi, 1);
+  dataChanged = true; renderAll();
+  _showUndoToast(label, `Zahlung in „${gewerk}“ gelöscht`, () => {
+    DATA.gewerke[gi].zahlungen.splice(zi, 0, backup);
+    dataChanged = true;
+  });
 }
 
 // ── Geldquellen ──
@@ -1841,9 +1924,14 @@ function toggleVerfuegbar(idx) {
   saveData(); renderAll();
 }
 function deleteGeldquelle(idx) {
-  if(!confirm(`"${DATA.geldquellen[idx].name}" löschen?`)) return;
-  DATA.geldquellen.splice(idx,1);
-  saveData(); renderAll();
+  const backup = JSON.parse(JSON.stringify(DATA.geldquellen[idx]));
+  const name = DATA.geldquellen[idx].name;
+  DATA.geldquellen.splice(idx, 1);
+  dataChanged = true; renderAll();
+  _showUndoToast(name, `Geldquelle gelöscht`, () => {
+    DATA.geldquellen.splice(idx, 0, backup);
+    dataChanged = true;
+  });
 }
 function addGeldquelle() {
   const name=document.getElementById('new-gq-name').value.trim();
