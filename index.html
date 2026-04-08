@@ -37,6 +37,21 @@
   --font-mono:    'DM Mono', monospace;
 }
 
+/* ─── LIGHT THEME ─── */
+:root.light {
+  --bg:         #f0f4fb;
+  --surface:    #ffffff;
+  --surface2:   #e8eef8;
+  --surface3:   #dde5f4;
+  --border:     #c8d3e8;
+  --border2:    #b0bdd6;
+  --text:       #141a2e;
+  --text2:      #3d4d6a;
+  --text3:      #7a8899;
+  --shadow:     0 4px 24px rgba(0,0,0,0.08);
+  --shadow-lg:  0 8px 48px rgba(0,0,0,0.13);
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html { font-size: 15px; }
 body {
@@ -86,10 +101,20 @@ body {
 .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(79,142,247,0.08); }
 .nav-item .icon { font-size: 1rem; width: 20px; text-align: center; }
 .sidebar-footer {
-  padding: 16px 20px;
+  padding: 14px 20px;
   border-top: 1px solid var(--border);
   font-size: 0.71rem; color: var(--text3);
+  display: flex; flex-direction: column; gap: 10px;
 }
+.theme-toggle-btn {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 6px 10px;
+  cursor: pointer; font-size: 0.78rem; color: var(--text2);
+  font-family: var(--font-body); transition: all 0.15s; width: 100%;
+}
+.theme-toggle-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border2); }
+.theme-toggle-icon { font-size: 0.95rem; }
 
 /* ─── MAIN ─── */
 .main { flex: 1; overflow-y: auto; }
@@ -600,6 +625,10 @@ body {
   </div>
   <div class="sidebar-footer">
     <span style="color:var(--text2);">👤 <span class="current-user"></span></span>
+    <button class="theme-toggle-btn" onclick="toggleTheme()" id="theme-toggle-btn">
+      <span id="theme-toggle-label">Helles Design</span>
+      <span class="theme-toggle-icon" id="theme-toggle-icon">☀️</span>
+    </button>
   </div>
 </nav>
 
@@ -929,19 +958,19 @@ body {
       <div class="settings-grid">
         <div class="settings-group">
           <label>Projektname</label>
-          <input type="text" id="s-name" placeholder="z.B. Hausbau München">
+          <input type="text" id="s-name" placeholder="z.B. Hausbau München" oninput="syncMeta()">
         </div>
         <div class="settings-group">
           <label>Bauort</label>
-          <input type="text" id="s-ort" placeholder="z.B. München-Nord">
+          <input type="text" id="s-ort" placeholder="z.B. München-Nord" oninput="syncMeta()">
         </div>
         <div class="settings-group">
           <label>Hauptauftragnehmer</label>
-          <input type="text" id="s-an" placeholder="z.B. Mustermann GmbH">
+          <input type="text" id="s-an" placeholder="z.B. Mustermann GmbH" oninput="syncMeta()">
         </div>
         <div class="settings-group">
           <label>Ansprechpartner</label>
-          <input type="text" id="s-ap" placeholder="z.B. Max Mustermann">
+          <input type="text" id="s-ap" placeholder="z.B. Max Mustermann" oninput="syncMeta()">
         </div>
       </div>
       <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
@@ -1271,8 +1300,13 @@ let pieChartInst=null, doughnutInst=null, barInst=null;
 const COLORS = ['#4f8ef7','#3ecf8e','#e8b84b','#f87c4f','#a78bfa','#f472b6','#34d399','#60a5fa','#fbbf24','#f87171','#94a3b8','#2dd4bf','#c084fc','#fb923c'];
 
 function initCharts() {
-  Chart.defaults.color='#8b95aa';
+  const light = document.documentElement.classList.contains('light');
+  Chart.defaults.color = light ? '#3d4d6a' : '#8b95aa';
   Chart.defaults.font.family="'DM Mono', monospace";
+  const borderCol  = light ? '#ffffff' : '#171c26';
+  const gridCol    = light ? '#c8d3e8' : '#2a3349';
+  const barPending = light ? '#dde5f4' : '#3a4560';
+  const doughnutPending = light ? '#dde5f4' : '#252d40';
 
   // Pie: Kostenverteilung
   const pCtx=document.getElementById('pieChart').getContext('2d');
@@ -1280,7 +1314,7 @@ function initCharts() {
   const gw=DATA.gewerke.filter(g=>g.budget>0);
   pieChartInst=new Chart(pCtx,{
     type:'doughnut',
-    data:{labels:gw.map(g=>g.name),datasets:[{data:gw.map(g=>g.budget),backgroundColor:COLORS,borderColor:'#171c26',borderWidth:2,hoverOffset:6}]},
+    data:{labels:gw.map(g=>g.name),datasets:[{data:gw.map(g=>g.budget),backgroundColor:COLORS,borderColor:borderCol,borderWidth:2,hoverOffset:6}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${fEUR(ctx.raw)}  (${fPCT(ctx.raw/calc.totalBudget())})`}}}}
   });
 
@@ -1289,7 +1323,7 @@ function initCharts() {
   if(doughnutInst) doughnutInst.destroy();
   doughnutInst=new Chart(dCtx,{
     type:'doughnut',
-    data:{labels:['Bezahlt','Ausstehend'],datasets:[{data:[calc.totalPaid(),calc.totalOpen()],backgroundColor:['#3ecf8e','#252d40'],borderColor:'#171c26',borderWidth:2,hoverOffset:4}]},
+    data:{labels:['Bezahlt','Ausstehend'],datasets:[{data:[calc.totalPaid(),calc.totalOpen()],backgroundColor:['#3ecf8e',doughnutPending],borderColor:borderCol,borderWidth:2,hoverOffset:4}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'70%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${fEUR(ctx.raw)}`}}}}
   });
 
@@ -1303,15 +1337,15 @@ function initCharts() {
       labels:gwMitZ.map(g=>g.name.split(' ')[0]),
       datasets:[
         {label:'Bezahlt',data:gwMitZ.map(g=>calc.gewerkPaid(g)),backgroundColor:'#3ecf8e',borderRadius:4,borderSkipped:false},
-        {label:'Geplant',data:gwMitZ.map(g=>(g.zahlungen||[]).filter(z=>!z.bezahlt).reduce((s,z)=>s+(z.betrag||0),0)),backgroundColor:'#3a4560',borderRadius:4,borderSkipped:false},
+        {label:'Geplant',data:gwMitZ.map(g=>(g.zahlungen||[]).filter(z=>!z.bezahlt).reduce((s,z)=>s+(z.betrag||0),0)),backgroundColor:barPending,borderRadius:4,borderSkipped:false},
       ]
     },
     options:{
       responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false}},
       scales:{
-        x:{stacked:true,grid:{color:'#2a3349'},ticks:{color:'#5a6478',font:{size:10}}},
-        y:{stacked:true,grid:{color:'#2a3349'},ticks:{color:'#5a6478',callback:v=>fEUR(v),font:{size:10}}}
+        x:{stacked:true,grid:{color:gridCol},ticks:{color:Chart.defaults.color,font:{size:10}}},
+        y:{stacked:true,grid:{color:gridCol},ticks:{color:Chart.defaults.color,callback:v=>fEUR(v),font:{size:10}}}
       }
     }
   });
@@ -1952,12 +1986,16 @@ function updateEK(val) { DATA.eigenkapital.gesamt=parseFloat(val)||0; saveData()
 function updateKredit(field,val) { DATA.kredit[field]=parseFloat(val)||0; saveData(); renderAll(); }
 
 // ── Settings ──
+function syncMeta() {
+  DATA.meta.name          = document.getElementById('s-name').value;
+  DATA.meta.ort           = document.getElementById('s-ort').value;
+  DATA.meta.auftragnehmer = document.getElementById('s-an').value;
+  DATA.meta.ansprechpartner = document.getElementById('s-ap').value;
+  markDirty('einstellung', 'Projektinfo geändert');
+}
 function saveSettings() {
-  DATA.meta.name=document.getElementById('s-name').value;
-  DATA.meta.ort=document.getElementById('s-ort').value;
-  DATA.meta.auftragnehmer=document.getElementById('s-an').value;
-  DATA.meta.ansprechpartner=document.getElementById('s-ap').value;
-  saveData();
+  syncMeta();
+  manualSave();
 }
 function exportJSON() {
   const blob=new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});
@@ -1975,6 +2013,34 @@ function handleImport(e) {
     catch(err) { alert('Ungültige JSON-Datei'); }
   };
   reader.readAsText(file);
+}
+
+// ── Theme ──
+(function applyStoredTheme() {
+  if (localStorage.getItem('theme') === 'light') {
+    document.documentElement.classList.add('light');
+  }
+})();
+
+function toggleTheme() {
+  const isLight = document.documentElement.classList.toggle('light');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  _updateThemeBtn(isLight);
+  dataChanged = true;
+  initCharts();
+}
+
+function _updateThemeBtn(isLight) {
+  const lbl  = document.getElementById('theme-toggle-label');
+  const icon = document.getElementById('theme-toggle-icon');
+  if (!lbl || !icon) return;
+  lbl.textContent  = isLight ? 'Dunkles Design' : 'Helles Design';
+  icon.textContent = isLight ? '🌙' : '☀️';
+}
+
+// Sync theme button state after login
+function initThemeBtn() {
+  _updateThemeBtn(document.documentElement.classList.contains('light'));
 }
 
 // ── Toast ──
@@ -2096,6 +2162,7 @@ function applyUserToUI(user) {
   if (emailEl) emailEl.textContent = email;
   const avatarEl = document.getElementById('user-avatar');
   if (avatarEl) avatarEl.textContent = initial;
+  initThemeBtn();
 }
 
 // ── Init ──
