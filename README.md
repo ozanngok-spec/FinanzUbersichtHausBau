@@ -42,6 +42,7 @@ Live URL: `https://ozanngok-spec.github.io/FinanzUbersichtHausBau/`
 ## Supabase setup
 
 See [README_SUPABASE.md](README_SUPABASE.md) for:
+
 - Database schema (SQL)
 - Seeding initial data
 - RLS policy recommendations

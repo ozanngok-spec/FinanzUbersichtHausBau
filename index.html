@@ -129,6 +129,29 @@ body {
 }
 .page-header p { font-size: 0.82rem; color: var(--text2); }
 
+/* ─── GLOBAL ACTION BAR ─── */
+.action-bar {
+  position: sticky; top: 0; z-index: 90;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  padding: 0 36px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  height: 0; overflow: hidden;
+  opacity: 0;
+  transition: height 0.2s ease, opacity 0.2s ease, padding 0.2s ease;
+  pointer-events: none;
+}
+.action-bar.visible {
+  height: 52px;
+  opacity: 1;
+  padding: 10px 36px;
+  pointer-events: all;
+}
+.action-bar-left { font-size: 0.8rem; color: var(--text2); display:flex; align-items:center; gap:8px; }
+.action-bar-left .ab-dot { width:7px; height:7px; border-radius:50%; background:var(--gold); flex-shrink:0; }
+.action-bar-right { display:flex; gap:8px; align-items:center; }
+
 /* ─── KPI CARDS ─── */
 .kpi-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 28px; }
 .kpi {
@@ -307,6 +330,25 @@ body {
   0%,100% { box-shadow: 0 0 0 0 rgba(232,184,75,0.5); }
   50%      { box-shadow: 0 0 0 7px rgba(232,184,75,0); }
 }
+.undo-edit-btn {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.undo-edit-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.undo-edit-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.undo-edit-badge {
+  background: var(--accent); color: #fff;
+  border-radius: 10px; padding: 1px 6px;
+  font-size: 0.68rem; font-weight: 600;
+}
 
 /* ─── UNSAVED CHANGES MODAL ─── */
 #unsaved-modal-backdrop {
@@ -451,6 +493,14 @@ body {
 
   /* ── Tables: force wider than screen so overflow-x actually scrolls ── */
   .data-table { min-width: 680px; }
+  /* ── Compact 2-col tables in Finanzierung don't need horizontal scroll ── */
+  #page-finanzierung .data-table { min-width: 0; }
+
+  /* ── Card header: allow sub text to wrap on narrow screens ── */
+  .card-header { flex-wrap: wrap; gap: 4px; }
+
+  /* ── Button touch targets ── */
+  .btn { min-height: 44px; }
 
   /* ── Reduce deep indent on sub-rows ── */
   .sub-row td:first-child { padding-left: 20px !important; }
@@ -464,9 +514,28 @@ body {
   /* ── Toast: full-width above the bottom nav ── */
   .toast { bottom: calc(66px + env(safe-area-inset-bottom)); left: 12px; right: 12px; text-align: center; }
 
+  /* ── Undo-delete toast: also above bottom nav ── */
+  .undo-toast { bottom: calc(66px + env(safe-area-inset-bottom) + 8px); left: 10px; right: 10px; min-width: unset; }
+
   /* ── Page header more compact ── */
   .page-header { margin-bottom: 18px; }
   .page-header h2 { font-size: 1.5rem; }
+
+  /* ── Action bar: slimmer padding, tighter layout ── */
+  .action-bar,
+  .action-bar.visible { padding-left: 14px; padding-right: 14px; }
+  .action-bar-left { font-size: 0.72rem; gap: 6px; }
+  #action-bar-msg { display: none; } /* hide label, dots enough */
+  .save-now-btn, .undo-edit-btn { font-size: 0.77rem; padding: 6px 11px; }
+
+  /* ── Auth card: remove excess padding ── */
+  .auth-card { padding: 28px 20px; }
+
+  /* ── Unsaved modal: slimmer on narrow screens ── */
+  #unsaved-modal { padding: 20px 18px 18px; }
+  .unsaved-modal-actions { flex-direction: column; }
+  .unsaved-modal-actions .btn-discard,
+  .unsaved-modal-actions .btn-save { width: 100%; text-align: center; }
 }
 @media (max-width: 420px) {
   .kpi-grid { grid-template-columns: 1fr 1fr; }
@@ -635,6 +704,22 @@ body {
 <!-- MAIN -->
 <main class="main">
 
+<!-- GLOBAL ACTION BAR -->
+<div class="action-bar" id="action-bar">
+  <div class="action-bar-left">
+    <span class="ab-dot"></span>
+    <span id="action-bar-msg">Ungespeicherte Änderungen</span>
+  </div>
+  <div class="action-bar-right">
+    <button class="undo-edit-btn" id="undo-edit-btn" onclick="undoEdit()" disabled title="Nichts rückgängig zu machen">
+      ↩ Rückgängig <span class="undo-edit-badge" id="undo-edit-badge" style="display:none;">0</span>
+    </button>
+    <button class="btn btn-primary save-now-btn" id="kosten-save-btn" onclick="manualSave()" disabled>
+      💾 Speichern
+    </button>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════ -->
 <!-- PAGE: DASHBOARD -->
 <!-- ═══════════════════════════════════════ -->
@@ -717,14 +802,9 @@ body {
 <!-- PAGE: KOSTEN -->
 <!-- ═══════════════════════════════════════ -->
 <div class="page" id="page-kosten">
-  <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-    <div>
-      <h2>Kostenplan</h2>
-      <p>Budget pro Gewerk. Zahlungen direkt pro Zeile aufklappen und verwalten.</p>
-    </div>
-    <button class="btn btn-primary save-now-btn" id="kosten-save-btn" onclick="manualSave()" disabled style="flex-shrink:0;margin-top:4px;">
-      💾 Speichern
-    </button>
+  <div class="page-header">
+    <h2>Kostenplan</h2>
+    <p>Budget pro Gewerk. Zahlungen direkt pro Zeile aufklappen und verwalten.</p>
   </div>
   <div class="card">
     <div class="card-header">
@@ -983,6 +1063,20 @@ body {
   </div>
 
   <div class="card" style="max-width:600px;margin-top:16px;">
+    <div class="card-header"><h3>Design</h3></div>
+    <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:0.82rem;font-weight:500;color:var(--text);">Farbschema</div>
+        <div style="font-size:0.75rem;color:var(--text3);margin-top:2px;">Hell- oder Dunkel-Modus</div>
+      </div>
+      <button class="theme-toggle-btn" onclick="toggleTheme()" id="theme-toggle-btn-settings" style="width:auto;min-width:160px;">
+        <span id="theme-toggle-label-settings">Helles Design</span>
+        <span class="theme-toggle-icon" id="theme-toggle-icon-settings">☀️</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="card" style="max-width:600px;margin-top:16px;">
     <div class="card-header"><h3>Konto</h3></div>
     <div class="card-body">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
@@ -1028,7 +1122,7 @@ body {
   <div class="undo-toast-row">
     <span class="undo-toast-icon">🗑</span>
     <span class="undo-toast-label"><strong id="undo-toast-title"></strong><span id="undo-toast-msg">gelöscht</span></span>
-    <button class="undo-btn" onclick="undoDelete()">Rükgängig</button>
+    <button class="undo-btn" onclick="undoDelete()">Rückgängig</button>
   </div>
   <div class="undo-progress"><div class="undo-progress-bar" id="undo-progress-bar"></div></div>
 </div>
@@ -1162,6 +1256,7 @@ function markDirty(tag, text) {
   }
   const btn = document.getElementById('kosten-save-btn');
   if (btn) { btn.disabled = false; btn.classList.add('dirty'); btn.textContent = '💾 Speichern *'; }
+  _syncActionBar();
   // Auto-save 2.5 s after last change
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(() => { if (_unsaved) _doAutoSave(); }, 2500);
@@ -1173,6 +1268,7 @@ function _clearDirty() {
   if (_saveDebounceTimer) { clearTimeout(_saveDebounceTimer); _saveDebounceTimer = null; }
   const btn = document.getElementById('kosten-save-btn');
   if (btn) { btn.disabled = true; btn.classList.remove('dirty'); btn.textContent = '💾 Speichern'; }
+  _syncActionBar();
 }
 
 // ── Elegant unsaved-changes modal (replaces confirm()) ──
@@ -1807,9 +1903,72 @@ function updateGewerk(gi, field, val) {
   const text = field === 'budget'
     ? `${g.name} — Budget → ${fEUR(parseFloat(val)||0)}`
     : `${g.name} — Notiz geändert`;
+  pushUndoSnapshot(text);
   DATA.gewerke[gi][field] = field==='note' ? val : (parseFloat(val)||0);
   markDirty(tag, text); renderAll();
 }
+// ── Edit Undo Stack (Ctrl/Cmd+Z, max 20 steps) ──
+const UNDO_MAX = 20;
+let _editUndoStack = []; // [{snapshot, label}]
+
+function pushUndoSnapshot(label) {
+  _editUndoStack.push({ snapshot: JSON.parse(JSON.stringify(DATA)), label });
+  if (_editUndoStack.length > UNDO_MAX) _editUndoStack.shift();
+  _syncUndoBtn();
+}
+
+function undoEdit() {
+  if (_editUndoStack.length === 0) return;
+  const { snapshot, label } = _editUndoStack.pop();
+  DATA = snapshot;
+  dataChanged = true;
+  markDirty('rückgängig', `Rückgängig: ${label}`);
+  renderAll();
+  showToast(`↩ Rückgängig: ${label}`, false);
+  _syncUndoBtn();
+}
+
+function _syncActionBar() {
+  const bar = document.getElementById('action-bar');
+  if (!bar) return;
+  const n = _editUndoStack.length;
+  const show = _unsaved || n > 0;
+  bar.classList.toggle('visible', show);
+  const msg = document.getElementById('action-bar-msg');
+  if (msg) {
+    if (_unsaved && n > 0) msg.textContent = `Ungespeicherte Änderungen · ${n} Schritt${n>1?'e':''} rückgängig möglich`;
+    else if (_unsaved)     msg.textContent = 'Ungespeicherte Änderungen';
+    else if (n > 0)        msg.textContent = `${n} Schritt${n>1?'e':''} rückgängig möglich`;
+  }
+}
+
+function _syncUndoBtn() {
+  const btn   = document.getElementById('undo-edit-btn');
+  const badge = document.getElementById('undo-edit-badge');
+  if (!btn) return;
+  const n = _editUndoStack.length;
+  btn.disabled = n === 0;
+  if (badge) {
+    badge.style.display = n > 0 ? 'inline' : 'none';
+    badge.textContent = n;
+  }
+  btn.title = n > 0
+    ? `Rückgängig: „${_editUndoStack[n-1].label}" (${n} Schritt${n>1?'e':''})`
+    : 'Nichts rückgängig zu machen';
+  _syncActionBar();
+}
+
+// Ctrl+Z / Cmd+Z — skip when cursor is inside a text input
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    const tag = document.activeElement?.tagName;
+    const typ = document.activeElement?.type;
+    if (tag === 'TEXTAREA' || (tag === 'INPUT' && typ !== 'number' && typ !== 'date' && typ !== 'checkbox')) return;
+    e.preventDefault();
+    undoEdit();
+  }
+});
+
 // ── Undo delete management ──
 let _undoState = null;
 let _undoTimer = null;
@@ -1926,6 +2085,7 @@ function updateZahlung(gi, zi, field, val) {
   const label = z.notiz || `Rate ${zi+1}`;
   const fieldLabels = { betrag: 'Betrag', faellig: 'Fällig am', paidAt: 'Bezahlt am', notiz: 'Bezeichnung' };
   const text = `${g.name} › ${label} — ${fieldLabels[field]||field}${field==='betrag'?' → '+fEUR(parseFloat(val)||0):''}`;
+  pushUndoSnapshot(text);
   DATA.gewerke[gi].zahlungen[zi][field] = (field==='betrag') ? (parseFloat(val)||0) : val;
   markDirty('zahlung', text); renderAll();
 }
@@ -1950,10 +2110,12 @@ function deleteZahlung(gi, zi) {
 
 // ── Geldquellen ──
 function updateGeldquelle(idx,field,val) {
+  pushUndoSnapshot(`${DATA.geldquellen[idx].name} — Betrag geändert`);
   DATA.geldquellen[idx][field]=parseFloat(val)||0;
   saveData(); renderAll();
 }
 function toggleVerfuegbar(idx) {
+  pushUndoSnapshot(`${DATA.geldquellen[idx].name} — Verfügbarkeit geändert`);
   DATA.geldquellen[idx].verfuegbar=!DATA.geldquellen[idx].verfuegbar;
   saveData(); renderAll();
 }
@@ -1982,11 +2144,24 @@ function addGeldquelle() {
 }
 
 // ── Kredit / EK ──
-function updateEK(val) { DATA.eigenkapital.gesamt=parseFloat(val)||0; saveData(); renderAll(); }
-function updateKredit(field,val) { DATA.kredit[field]=parseFloat(val)||0; saveData(); renderAll(); }
+function updateEK(val) {
+  pushUndoSnapshot(`Eigenkapital → ${fEUR(parseFloat(val)||0)}`);
+  DATA.eigenkapital.gesamt=parseFloat(val)||0; saveData(); renderAll();
+}
+function updateKredit(field,val) {
+  const labels = { bewilligt:'Kreditbetrag', abgerufen:'Abgerufen', zinssatz:'Zinssatz', laufzeit:'Laufzeit' };
+  pushUndoSnapshot(`Kredit: ${labels[field]||field} geändert`);
+  DATA.kredit[field]=parseFloat(val)||0; saveData(); renderAll();
+}
 
 // ── Settings ──
 function syncMeta() {
+  // Only push snapshot once per field focus session (not on every keystroke)
+  if (!syncMeta._pending) {
+    syncMeta._pending = true;
+    pushUndoSnapshot('Projektinfo geändert');
+    setTimeout(() => { syncMeta._pending = false; }, 2000);
+  }
   DATA.meta.name          = document.getElementById('s-name').value;
   DATA.meta.ort           = document.getElementById('s-ort').value;
   DATA.meta.auftragnehmer = document.getElementById('s-an').value;
@@ -2031,11 +2206,18 @@ function toggleTheme() {
 }
 
 function _updateThemeBtn(isLight) {
-  const lbl  = document.getElementById('theme-toggle-label');
-  const icon = document.getElementById('theme-toggle-icon');
-  if (!lbl || !icon) return;
-  lbl.textContent  = isLight ? 'Dunkles Design' : 'Helles Design';
-  icon.textContent = isLight ? '🌙' : '☀️';
+  const label = isLight ? 'Dunkles Design' : 'Helles Design';
+  const icon  = isLight ? '🌙' : '☀️';
+  // Sidebar button
+  const lbl1  = document.getElementById('theme-toggle-label');
+  const icon1 = document.getElementById('theme-toggle-icon');
+  if (lbl1)  lbl1.textContent  = label;
+  if (icon1) icon1.textContent = icon;
+  // Settings page button
+  const lbl2  = document.getElementById('theme-toggle-label-settings');
+  const icon2 = document.getElementById('theme-toggle-icon-settings');
+  if (lbl2)  lbl2.textContent  = label;
+  if (icon2) icon2.textContent = icon;
 }
 
 // Sync theme button state after login
@@ -2148,6 +2330,8 @@ async function logout() {
   if (!confirm('Wirklich abmelden?')) return;
   await sb.auth.signOut();
   DATA = JSON.parse(JSON.stringify(DEFAULT_DATA));
+  _editUndoStack = []; _syncUndoBtn();
+  _editUndoStack = []; _syncUndoBtn();
   document.querySelector('.app').style.display = 'none';
   document.getElementById('auth-overlay').classList.remove('hidden');
   setAuthMode('signin');
