@@ -270,6 +270,83 @@ body {
 }
 .toast.show { opacity: 1; transform: translateY(0); }
 
+/* ─── UNSAVED INDICATOR ─── */
+.save-now-btn { transition: background 0.2s, color 0.2s, box-shadow 0.2s; }
+.save-now-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.save-now-btn.dirty {
+  background: var(--gold) !important;
+  color: #0f1117 !important;
+  animation: pulse-gold 1.8s ease-in-out infinite;
+}
+@keyframes pulse-gold {
+  0%,100% { box-shadow: 0 0 0 0 rgba(232,184,75,0.5); }
+  50%      { box-shadow: 0 0 0 7px rgba(232,184,75,0); }
+}
+
+/* ─── UNSAVED CHANGES MODAL ─── */
+#unsaved-modal-backdrop {
+  display: none;
+  position: fixed; inset: 0; z-index: 1100;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  align-items: center; justify-content: center;
+  padding: 20px;
+}
+#unsaved-modal-backdrop.open { display: flex; animation: fadeInBackdrop 0.18s ease; }
+@keyframes fadeInBackdrop { from { opacity:0; } to { opacity:1; } }
+#unsaved-modal {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-top: 3px solid var(--gold);
+  border-radius: var(--radius-lg);
+  padding: 28px 28px 24px;
+  width: 100%; max-width: 420px;
+  box-shadow: var(--shadow-lg);
+  animation: slideUpModal 0.2s ease;
+}
+@keyframes slideUpModal { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+.unsaved-modal-icon { font-size: 2rem; margin-bottom: 12px; }
+.unsaved-modal-title {
+  font-family: var(--font-display); font-size: 1.15rem;
+  color: var(--text); margin-bottom: 6px;
+}
+.unsaved-modal-subtitle { font-size: 0.8rem; color: var(--text3); margin-bottom: 16px; }
+.unsaved-modal-changes {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-bottom: 20px;
+  max-height: 160px; overflow-y: auto;
+}
+.unsaved-modal-changes li {
+  font-size: 0.78rem; color: var(--text2);
+  padding: 3px 0; border-bottom: 1px solid var(--border);
+  list-style: none; display: flex; align-items: baseline; gap: 8px;
+}
+.unsaved-modal-changes li:last-child { border-bottom: none; }
+.unsaved-modal-changes .change-tag {
+  font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em;
+  background: var(--surface3); color: var(--text3);
+  border-radius: 4px; padding: 1px 5px; flex-shrink: 0;
+}
+.unsaved-modal-changes .change-tag.budget { background: rgba(79,142,247,0.15); color: var(--accent); }
+.unsaved-modal-changes .change-tag.zahlung { background: rgba(62,207,142,0.12); color: var(--green); }
+.unsaved-modal-changes .change-tag.notiz { background: rgba(232,184,75,0.12); color: var(--gold); }
+.unsaved-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.unsaved-modal-actions .btn-discard {
+  background: transparent; border: 1px solid var(--border2); color: var(--text2);
+  padding: 9px 18px; border-radius: var(--radius-sm); font-family: var(--font-body);
+  font-size: 0.84rem; cursor: pointer; transition: all 0.15s;
+}
+.unsaved-modal-actions .btn-discard:hover { border-color: var(--red); color: var(--red); }
+.unsaved-modal-actions .btn-save {
+  background: var(--gold); color: #0f1117; border: none;
+  padding: 9px 22px; border-radius: var(--radius-sm); font-family: var(--font-body);
+  font-size: 0.84rem; font-weight: 600; cursor: pointer; transition: background 0.15s;
+}
+.unsaved-modal-actions .btn-save:hover { background: var(--gold2); }
+
 /* ─── MOBILE BOTTOM NAV ─── */
 .mobile-nav {
   display: none;
@@ -580,9 +657,14 @@ body {
 <!-- PAGE: KOSTEN -->
 <!-- ═══════════════════════════════════════ -->
 <div class="page" id="page-kosten">
-  <div class="page-header">
-    <h2>Kostenplan</h2>
-    <p>Budget pro Gewerk. Zahlungen direkt pro Zeile aufklappen und verwalten.</p>
+  <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+    <div>
+      <h2>Kostenplan</h2>
+      <p>Budget pro Gewerk. Zahlungen direkt pro Zeile aufklappen und verwalten.</p>
+    </div>
+    <button class="btn btn-primary save-now-btn" id="kosten-save-btn" onclick="manualSave()" disabled style="flex-shrink:0;margin-top:4px;">
+      💾 Speichern
+    </button>
   </div>
   <div class="card">
     <div class="card-header">
@@ -893,6 +975,20 @@ body {
   </div>
 </div>
 
+<!-- UNSAVED CHANGES MODAL -->
+<div id="unsaved-modal-backdrop">
+  <div id="unsaved-modal">
+    <div class="unsaved-modal-icon">💾</div>
+    <div class="unsaved-modal-title">Ungespeicherte Änderungen</div>
+    <div class="unsaved-modal-subtitle">Folgende Felder wurden geändert aber noch nicht gespeichert:</div>
+    <ul class="unsaved-modal-changes" id="unsaved-modal-list"></ul>
+    <div class="unsaved-modal-actions">
+      <button class="btn-discard" id="unsaved-discard-btn">Verwerfen &amp; wechseln</button>
+      <button class="btn-save" id="unsaved-save-btn">💾 Jetzt speichern</button>
+    </div>
+  </div>
+</div>
+
 <!-- AUTH OVERLAY -->
 <div id="auth-overlay" class="hidden">
   <div class="auth-card">
@@ -982,6 +1078,84 @@ async function loadDataFromDB(userId) {
 }
 
 let dataChanged = true;
+
+// ── Dirty / debounced-save management ──
+let _unsaved = false;
+let _saveDebounceTimer = null;
+let _changeLog = []; // {tag, text} entries shown in modal
+
+function markDirty(tag, text) {
+  _unsaved = true;
+  dataChanged = true;
+  // Keep change log deduplicated by tag+text
+  if (tag && text) {
+    const key = tag + '|' + text;
+    if (!_changeLog.find(c => c.key === key)) _changeLog.push({ key, tag, text });
+  }
+  const btn = document.getElementById('kosten-save-btn');
+  if (btn) { btn.disabled = false; btn.classList.add('dirty'); btn.textContent = '💾 Speichern *'; }
+  // Auto-save 2.5 s after last change
+  if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
+  _saveDebounceTimer = setTimeout(() => { if (_unsaved) _doAutoSave(); }, 2500);
+}
+
+function _clearDirty() {
+  _unsaved = false;
+  _changeLog = [];
+  if (_saveDebounceTimer) { clearTimeout(_saveDebounceTimer); _saveDebounceTimer = null; }
+  const btn = document.getElementById('kosten-save-btn');
+  if (btn) { btn.disabled = true; btn.classList.remove('dirty'); btn.textContent = '💾 Speichern'; }
+}
+
+// ── Elegant unsaved-changes modal (replaces confirm()) ──
+function _showUnsavedModal() {
+  return new Promise(resolve => {
+    const backdrop = document.getElementById('unsaved-modal-backdrop');
+    const list = document.getElementById('unsaved-modal-list');
+    const saveBtn = document.getElementById('unsaved-save-btn');
+    const discardBtn = document.getElementById('unsaved-discard-btn');
+
+    // Populate change list
+    const entries = _changeLog.length > 0 ? _changeLog : [{ tag: 'änderung', text: 'Nicht spezifizierte Änderung' }];
+    list.innerHTML = entries.map(c =>
+      `<li><span class="change-tag ${c.tag}">${c.tag}</span>${c.text}</li>`
+    ).join('');
+
+    backdrop.classList.add('open');
+
+    function close(result) {
+      backdrop.classList.remove('open');
+      saveBtn.removeEventListener('click', onSave);
+      discardBtn.removeEventListener('click', onDiscard);
+      resolve(result);
+    }
+    const onSave    = () => close('save');
+    const onDiscard = () => close('discard');
+    saveBtn.addEventListener('click', onSave);
+    discardBtn.addEventListener('click', onDiscard);
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) close('discard'); }, { once: true });
+  });
+}
+
+// Warn on page close/refresh when there are unsaved changes
+window.addEventListener('beforeunload', (e) => {
+  if (_unsaved) {
+    e.preventDefault();
+    e.returnValue = ''; // triggers the browser's native "Leave site?" dialog
+  }
+});
+
+async function _doAutoSave() {
+  if (!_unsaved) return;
+  _clearDirty();
+  await saveData();
+}
+
+async function manualSave() {
+  _clearDirty();
+  await saveData();
+}
+
 async function saveData() {
   showToast('Speichern…', false);
   try {
@@ -996,7 +1170,6 @@ async function saveData() {
       new Promise((_, reject) => setTimeout(() => reject(new Error('save timeout')), 8000))
     ]);
     if (error) throw error;
-    dataChanged = true;
     showToast('✓ Gespeichert', false);
   } catch(e) {
     console.error('Supabase save error:', e);
@@ -1541,6 +1714,7 @@ function renderAll() {
   renderFinanzierung();
   renderEinstellungen();
   if(dataChanged) { initCharts(); dataChanged=false; }
+  // Charts also reinit when explicitly triggered by markDirty
 }
 
 // ═══════════════════════════════════════════
@@ -1555,8 +1729,13 @@ function toggleExpand(gi) {
 
 // ── Gewerk ──
 function updateGewerk(gi, field, val) {
+  const g = DATA.gewerke[gi];
+  const tag = field === 'budget' ? 'budget' : 'notiz';
+  const text = field === 'budget'
+    ? `${g.name} — Budget → ${fEUR(parseFloat(val)||0)}`
+    : `${g.name} — Notiz geändert`;
   DATA.gewerke[gi][field] = field==='note' ? val : (parseFloat(val)||0);
-  saveData(); renderAll();
+  markDirty(tag, text); renderAll();
 }
 function deleteGewerk(gi) {
   if(!confirm(`"${DATA.gewerke[gi].name}" löschen?`)) return;
@@ -1631,8 +1810,13 @@ function toggleZahlung(gi, zi) {
   saveData(); renderAll();
 }
 function updateZahlung(gi, zi, field, val) {
+  const g = DATA.gewerke[gi];
+  const z = g.zahlungen[zi];
+  const label = z.notiz || `Rate ${zi+1}`;
+  const fieldLabels = { betrag: 'Betrag', faellig: 'Fällig am', paidAt: 'Bezahlt am', notiz: 'Bezeichnung' };
+  const text = `${g.name} › ${label} — ${fieldLabels[field]||field}${field==='betrag'?' → '+fEUR(parseFloat(val)||0):''}`;
   DATA.gewerke[gi].zahlungen[zi][field] = (field==='betrag') ? (parseFloat(val)||0) : val;
-  saveData(); renderAll();
+  markDirty('zahlung', text); renderAll();
 }
 
 function applyPct(gi, budget) {
@@ -1720,7 +1904,15 @@ function showToast(msg = '✓ Gespeichert', isError = false) {
 }
 
 // ── Navigation ──
-function showPage(id,el) {
+async function showPage(id,el) {
+  if (_unsaved) {
+    const choice = await _showUnsavedModal();
+    if (choice === 'save') {
+      await manualSave();
+    } else {
+      _clearDirty(); // discard pending debounce, mark clean without saving
+    }
+  }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item,.mobile-nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
@@ -1838,8 +2030,8 @@ async function handleSession(session) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  // Pre-validate stored session BEFORE passing to SDK — corrupt/expired tokens cause getSession() to hang
+document.addEventListener('DOMContentLoaded', () => {
+  // Clean up corrupt / expired tokens before SDK reads them
   try {
     const sbKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
     if (sbKey) {
@@ -1849,40 +2041,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         try { exp = JSON.parse(atob(stored.access_token.split('.')[1]))?.exp; } catch(_) {}
       }
       if (!exp || exp * 1000 < Date.now()) {
-        console.log('Stale/expired session token — clearing before SDK init');
         Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
       }
     }
-  } catch(e) {
-    // Corrupt JSON — wipe all Supabase keys
+  } catch(_) {
     Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
   }
 
-  // Safety timeout
+  // Safety timeout — if INITIAL_SESSION never fires within 8 s, show error
   const loadTimeout = setTimeout(() => {
-    if (!appInitialized) showLoadError('Verbindung zu Supabase fehlgeschlagen. URL/Key prüfen oder Internetverbindung testen.');
-  }, 6000);
+    if (!appInitialized) showLoadError('Verbindung zu Supabase fehlgeschlagen. Bitte Internetverbindung prüfen.');
+  }, 8000);
 
-  // Listen for future auth changes (login / logout)
+  // Supabase v2: onAuthStateChange fires INITIAL_SESSION immediately on page load
+  // with the stored session (or null). No need for getSession() — which can hang.
   sb.auth.onAuthStateChange(async (event, session) => {
-    clearTimeout(loadTimeout);
-    appInitialized = false;
-    await handleSession(session);
+    if (event === 'INITIAL_SESSION') {
+      clearTimeout(loadTimeout);
+      await handleSession(session);
+    } else if (event === 'SIGNED_IN') {
+      clearTimeout(loadTimeout);
+      appInitialized = false;
+      await handleSession(session);
+    } else if (event === 'SIGNED_OUT') {
+      appInitialized = false;
+      await handleSession(null);
+    }
+    // TOKEN_REFRESHED / USER_UPDATED — no UI change needed
   });
-
-  // Fetch current session — fast now that corrupt tokens are pre-cleared
-  try {
-    const { data: { session } } = await Promise.race([
-      sb.auth.getSession(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('getSession timeout')), 4000))
-    ]);
-    await handleSession(session);
-  } catch (e) {
-    console.error('Supabase getSession error:', e);
-    Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
-    appInitialized = false;
-    await handleSession(null);
-  }
 });
 </script>
 </body>
